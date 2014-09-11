@@ -7,7 +7,7 @@ JQ_BIN=$(command -v jq)
 if [[ -z "$JQ_BIN" ]]; 
 then
 	JQ_BIN=/bin/jq
-	wget -O $JQ_BIN http://stedolan.github.io/jq/download/linux64/jq
+	curl -s http://stedolan.github.io/jq/download/linux64/jq > $JQ_BIN
 	chmod a+x $JQ_BIN
 fi
 
