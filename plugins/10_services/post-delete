@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+
+APP="$1";
+APP_HOME="$DOKKU_ROOT/$APP"
+SERVICES_HOME="$APP_HOME/dokku-services"
+
+for CONTAINER_ID in $(cat "$SERVICES_HOME"/*); do
+	docker stop $CONTAINER_ID > /dev/null || :
+	docker rm $CONTAINER_ID > /dev/null || :
+done
+
+rm -fr "$SERVICES_HOME"

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ "$DOKKU_TRACE" ]] && set -x
+
+APP="$1";
+APP_HOME="$DOKKU_ROOT/$APP"
+SERVICES_HOME="$APP_HOME/dokku-services"
+
+docker run -a stdout "dokku/$APP" jq -r '.extra.services | to_entries | map(.key + " " + .value) | .[]' /app/composer.json | \
+while IFS=" " read SERVICE_NAME VAR_HOST_NAME VAR_PORT_NAME; do
+
+	mkdir -p "$SERVICES_HOME"
+
+	SAFE_SERVICE_NAME=${SERVICE_NAME/\//_}
+	CONTAINER_ID_PATH="${SERVICES_HOME}/${SAFE_SERVICE_NAME}.cid"
+	CONTAINER_ID=$(cat "$CONTAINER_ID_PATH" 2>/dev/null ||: )
+	if [ $(docker inspect "${CONTAINER_ID}" 2>/dev/null | jq .State.Running ) != "true" ]; then
+
+		CONTAINER_ID=$(docker run -d "$SERVICE_NAME")
+		echo "$CONTAINER_ID" > "$CONTAINER_ID_PATH"
+
+	fi
+
+	docker inspect $CONTAINER_ID | \
+		jq -r '.[0].NetworkSettings | .IPAddress + " " + ( .Ports | map(.[].HostPort) | .[0] )' | \
+		while read host port; do
+			dokku config:set $APP "${VAR_HOST_NAME}=${host}" "${VAR_PORT_NAME}=${port}"
+		done
+done
