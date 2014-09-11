@@ -40,9 +40,10 @@ case "$1" in
     APP_PATH=$DOKKU_ROOT/$APP
 
     if [[ $1 == "git-receive-pack" && ! -d "$APP_PATH/refs" ]]; then
-        local reference=$(readlink -fe "$DOKKU_ROOT/.reference")
-        if [ -d "$reference" ]; then
-          git clone --bare --reference "$reference" "$reference" $APP_PATH > /dev/null
+        REFERENCE_REPO=$(readlink -fn "$DOKKU_ROOT/.reference")
+        if [ -d "$REFERENCE_REPO" ]; then
+          git clone --bare --reference "$REFERENCE_REPO" "$REFERENCE_REPO" $APP_PATH > /dev/null
+          git branch dokku-init && git symbolic-ref HEAD refs/heads/dokku-init && git branch -d master
         else
           git init --bare $APP_PATH > /dev/null
         fi
