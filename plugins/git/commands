@@ -40,7 +40,12 @@ case "$1" in
     APP_PATH=$DOKKU_ROOT/$APP
 
     if [[ $1 == "git-receive-pack" && ! -d "$APP_PATH/refs" ]]; then
-        git init --bare $APP_PATH > /dev/null
+        local reference=$(readlink -fe "$DOKKU_ROOT/.reference")
+        if [ -d "$reference" ]; then
+          git clone --bare --reference "$reference" "$reference" $APP_PATH > /dev/null
+        else
+          git init --bare $APP_PATH > /dev/null
+        fi
         PRERECEIVE_HOOK="$APP_PATH/hooks/pre-receive"
         cat > $PRERECEIVE_HOOK <<EOF
 #!/usr/bin/env bash
