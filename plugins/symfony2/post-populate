@@ -1,0 +1,10 @@
+#!/bin/bash
+set -eo pipefail; [[ -n "$DOKKU_TRACE" ]] && set -x;
+
+APP=$1
+IMAGE=dokku/$APP
+
+id=$(docker run -d -i $IMAGE /bin/bash -c "composer install -o --no-interaction --no-scripts -d /app")
+docker attach $id
+test $(docker wait $id) -eq 0
+docker commit $id $IMAGE >/dev/null

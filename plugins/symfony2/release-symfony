@@ -1,0 +1,52 @@
+set -eo pipefail;
+
+APP_ENV=/app/.profile.d/app-env.sh
+
+sed --in-place -e /SYMFONY_ENV/d -e '$a export SYMFONY_ENV=dev' $APP_ENV
+
+source $APP_ENV
+
+export DOCPLANNER_MONGO_HOST="$MONGODB_HOST"
+export DOCPLANNER_MEMCACHED_HOST DOCPLANNER_MEMCACHED_PORT
+IFS=":" read DOCPLANNER_MEMCACHED_HOST DOCPLANNER_MEMCACHED_PORT < <(echo $MEMCAHED_SERVERS)
+export DOCPLANNER_DB_HOST DOCPLANNER_DB_PORT DOCPLANNER_DB_USER DOCPLANNER_DB_PASSWORD
+IFS=":/@" read DOCPLANNER_DB_USER DOCPLANNER_DB_PASSWORD DOCPLANNER_DB_HOST DOCPLANNER_DB_PORT _dbname < <(echo $DATABASE_URL|cut -b 10-)
+
+DOCPLANNER_ELASTIC_PORT ES_PORT
+DOCPLANNER_ELASTIC_HOST ES_HOST
+EOF
+
+CONSOLE_BIN=/app/app/console
+
+COMPOSER_BIN=/app/composer.phar
+if [[ ! -f "$COMPOSER_BIN" ]];
+then
+        COMPOSER_BIN=$(command -v composer)
+fi
+
+VENDOR_BIN_DIR=$(jq -r '.config["bin-dir"] // "bin"' < /app/composer.json)
+PHING_BIN=/app/$VENDOR_BIN_DIR/phing
+if [[ ! -f $PHING_BIN ]];
+then
+        PHING_BIN=$(command -v phing)
+fi
+
+if [[ -f "$PARAMETERS_FILE" ]];
+then
+        rm -f "$PARAMETERS_FILE"
+fi
+
+rm -fr /app/app/cache/* || :
+
+$COMPOSER_BIN run-script post-install-cmd --no-interaction -d /app
+
+if [[ -f "$CONSOLE_BIN" ]];
+then
+        $CONSOLE_BIN cache:warmup --env=dev || :
+fi
+
+if [[ -f "$PHING_BIN" ]] && [[ -f /app/build.xml ]];
+then
+        BUILD_TARGET=$(jq -r '.extra.build.bootstrap // "bootstrap"' < /app/composer.json)
+        $PHING_BIN -f /app/build.xml -Dbuild.confirm=Y $BUILD_TARGET
+fi
