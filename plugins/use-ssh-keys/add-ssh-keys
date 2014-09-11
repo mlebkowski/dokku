@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+mkdir -p /root/.ssh
+
+JQ_BIN=$(command -v jq)
+
+if [[ -z "$JQ_BIN" ]]; 
+then
+	JQ_BIN=/bin/jq
+	curl -s http://stedolan.github.io/jq/download/linux64/jq > $JQ_BIN
+	chmod a+x $JQ_BIN
+fi
+
+$JQ_BIN -r '.extra["deploy-keys"] | "/app/" + .[]?' < /app/composer.json | while read KEY_PATH;
+do
+	if [[ ! -f "$KEY_PATH" ]]; 
+	then
+		echo "Missing key file: $KEY_PATH"
+		exit 1;
+	fi;
+
+	echo "IdentityFile $KEY_PATH" >> /root/.ssh/config
+
+done;
+
+targets=( 'github.com' )
+for h in "${targets[@]}"
+do
+    ip=$(dig +short $h)
+    ssh-keyscan -H $ip >> /root/.ssh/known_hosts
+    ssh-keyscan -H $h >> /root/.ssh/known_hosts
+done
+

@@ -1,0 +1,57 @@
+#!/bin/bash
+set -eo pipefail;
+
+APP_ENV=/app/.profile.d/app-env.sh
+
+if [[ -f "$APP_ENV" ]]; then
+	sed --in-place -e /SYMFONY_ENV/d -e '$a export SYMFONY_ENV=dev' "$APP_ENV"
+else
+	mkdir -p $(dirname "$APP_ENV")
+	echo "export SYMFONY_ENV=dev" > "$APP_ENV"
+fi
+source "$APP_ENV"
+
+sed --in-place s/app.php/app_dev.php/g app/conf/site.conf.erb
+
+CONSOLE_BIN=/app/app/console
+
+COMPOSER_BIN=/app/composer.phar
+if [[ ! -f "$COMPOSER_BIN" ]];
+then
+	COMPOSER_BIN=$(command -v composer)
+fi
+
+VENDOR_BIN_DIR=$(jq -r '.config["bin-dir"] // "bin"' < /app/composer.json)
+PHING_BIN=/app/$VENDOR_BIN_DIR/phing
+if [[ ! -f $PHING_BIN ]];
+then
+	PHING_BIN=$(command -v phing)
+fi
+
+if [[ -f "$PARAMETERS_FILE" ]];
+then
+	rm -f "$PARAMETERS_FILE"
+fi
+
+rm -fr /app/app/cache/* || :
+
+$COMPOSER_BIN run-script post-install-cmd --no-interaction -d /app
+
+if [[ -f "$CONSOLE_BIN" ]];
+then
+	$CONSOLE_BIN cache:warmup --env=dev || :
+fi
+
+if [[ -f "$PHING_BIN" ]] && [[ -f /app/build.xml ]];
+then
+	$PHING_BIN -f /app/build.xml -Dbuild.confirm=Y $BUILD_TARGET
+fi
+
+# fpm is running as nobody:
+while read dir; do
+	find /app/$dir -type f -exec chmod a+rw {} \;
+	find /app/$dir -type d -exec chmod a+rxw {} \;
+
+done < <(jq -r '.extra["writable-paths"] | .[]' < /app/composer.json)
+
+

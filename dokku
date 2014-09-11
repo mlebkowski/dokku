@@ -30,16 +30,42 @@ case "$1" in
 
   build)
     APP="$2"; IMAGE="dokku/$APP"; CACHE_DIR="$DOKKU_ROOT/$APP/cache"
-    id=$(cat | docker run -i -a stdin progrium/buildstep /bin/bash -c "mkdir -p /app && tar -xC /app")
-    test $(docker wait $id) -eq 0
-    docker commit $id $IMAGE > /dev/null
-    [[ -d $CACHE_DIR ]] || mkdir $CACHE_DIR
-    pluginhook pre-build $APP
-    id=$(docker run -d -v $CACHE_DIR:/cache $IMAGE /build/builder)
-    docker attach $id
-    test $(docker wait $id) -eq 0
-    docker commit $id $IMAGE > /dev/null
-    pluginhook post-build $APP
+    [[ -d $CACHE_DIR ]] || mkdir -p $CACHE_DIR
+
+    BUILT_IMAGE_PATH="$DOKKU_ROOT/$APP/.built-image"
+    BUILT_IMAGE_NAME=$(cat $BUILT_IMAGE_PATH  2>/dev/null ||: )
+
+    if [ -n "$BUILT_IMAGE_NAME" ] && [ $(docker images | grep -c "$BUILT_IMAGE_NAME") -gt 0 ]; then
+
+      pluginhook pre-populate $APP
+      EXCLUDE="--exclude /vendor/ --exclude /.release --exclude /.profile.d/ --exclude /bin/run --exclude /conf --exclude /.env"
+      id=$(cat | docker run -i -a stdin -e "COMPOSER_GITHUB_TOKEN=$COMPOSER_GITHUB_TOKEN" "$BUILT_IMAGE_NAME" \
+        /bin/bash -c "rm -fr /build && mkdir -p /build && tar -xC /build && rsync -av --delete $EXCLUDE /build/ /app")
+      test $(docker wait $id) -eq 0
+      docker commit $id $IMAGE > /dev/null
+      pluginhook post-populate $APP
+
+	else
+
+      id=$(cat | docker run -i -a stdin -e "COMPOSER_GITHUB_TOKEN=$COMPOSER_GITHUB_TOKEN" \
+        "${DOKKU_BUILDSTEP_IMAGE:-progrium/buildstep}" \
+        /bin/bash -c "mkdir -p /app && tar -xC /app")
+      test $(docker wait $id) -eq 0
+      docker commit $id $IMAGE > /dev/null
+      pluginhook pre-build $APP
+      id=$(docker run -d -v $CACHE_DIR:/cache $IMAGE /build/builder)
+      docker attach $id
+      test $(docker wait $id) -eq 0
+      docker commit $id $IMAGE > /dev/null
+      pluginhook post-build $APP
+
+      BUILT_IMAGE_NAME=$(docker run $IMAGE bash -c 'jq -r .name  </app/composer.json')
+      if [ -n "$BUILT_IMAGE_NAME" ]; then
+        docker commit $id $BUILT_IMAGE_NAME >/dev/null
+	    echo $BUILT_IMAGE_NAME > $BUILT_IMAGE_PATH
+      fi
+
+    fi
     ;;
 
   release)
@@ -90,20 +116,19 @@ case "$1" in
     # now using the new container
     echo $id > "$DOKKU_ROOT/$APP/CONTAINER"
     echo $port > "$DOKKU_ROOT/$APP/PORT"
-    echo "http://$(< "$DOKKU_ROOT/HOSTNAME"):$port" > "$DOKKU_ROOT/$APP/URL"
 
     # kill the old container
     if [[ -n "$oldid" ]]; then
-      docker inspect $oldid &> /dev/null && docker kill $oldid > /dev/null
+      docker inspect $oldid &> /dev/null && docker kill $oldid > /dev/null || :
     fi
 
     ;;
 
   cleanup)
     # delete all non-running container
-    docker ps -a | grep 'Exit' |  awk '{print $1}' | xargs docker rm &> /dev/null &
+    docker ps -a | grep 'Exit' |  awk '{print $1}' | xargs docker rm &> /dev/null >/dev/null &
     # delete unused images
-    docker images | grep '<none>' |  awk '{print $3}'  | xargs docker rmi &> /dev/null &
+    docker images | grep '<none>' |  awk '{print $3}'  | xargs docker rmi &> /dev/null >/dev/null &
     ;;
 
   plugins)

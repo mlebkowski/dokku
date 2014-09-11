@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ "$DOKKU_TRACE" ]] && set -x
+
+if [ $(echo $(jq --version 2>&1 |cut -d"-" -f2) " >= 1.4" | bc) -eq 0 ]; then
+	echo "jq >= 1.4 required, you have" $(jq --version 2>&1)
+	exit 1;
+fi
+
+APP="$1";
+APP_HOME="$DOKKU_ROOT/$APP"
+ENV_FILE="$DOKKU_ROOT/$APP/ENV"
+ENV_TEMP=$(cat "${ENV_FILE}" 2>/dev/null || :)
+SERVICES_HOME="$APP_HOME/dokku-services"
+
+while IFS="|" read SERVICE_NAME VARIABLE_NAMES DEFAULT_VALUES; do
+
+	mkdir -p "$SERVICES_HOME"
+
+	SAFE_SERVICE_NAME=${SERVICE_NAME/\//_}
+	CONTAINER_ID_PATH="${SERVICES_HOME}/${SAFE_SERVICE_NAME}.cid"
+	CONTAINER_ID=$(cat "$CONTAINER_ID_PATH" 2>/dev/null ||: )
+	if [ $(docker inspect "${CONTAINER_ID}" 2>/dev/null | jq '.[0].State.Running // false' 2>/dev/null) != "true" ]; then
+
+		CONTAINER_ID=$(docker run -d "$SERVICE_NAME")
+		echo "$CONTAINER_ID" > "$CONTAINER_ID_PATH"
+
+	fi
+
+	while IFS="" read VARIABLE; do
+			KEY=$(echo ${VARIABLE} | cut -d"=" -f1)
+			VALUE=$(echo ${VARIABLE} | cut -d"=" -f2-)
+
+	        ENV_TEMP=$(echo -e "${ENV_TEMP}" | sed "/^export $KEY=/ d")
+	        ENV_TEMP="${ENV_TEMP}\nexport ${VARIABLE}"
+
+	done < <(docker inspect $CONTAINER_ID | \
+		jq -r '.[0].NetworkSettings | .IPAddress + "\n" + ( .Ports | to_entries | .[0] | if .value then .value else .key | split("/") | .[0] end )' | \
+		paste - <(printf '%s\n' $DEFAULT_VALUES ) | awk '{print $1;}' | \
+		paste -d"=" <(printf '%s\n' $VARIABLE_NAMES) - | grep -v "^="
+	)
+
+
+done < <(docker run -a stdout "dokku/$APP" jq -r '.extra.services |map(.name + "|" + .variables + "|" + .defaults) | .[]' /app/composer.json)
+
+
+echo -e "$ENV_TEMP" | sed '/^$/d' | sort > "$ENV_FILE"

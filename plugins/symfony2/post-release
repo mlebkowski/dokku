@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ "$DOKKU_TRACE" ]] && set -x
+
+APP="$1";
+IMAGE="dokku/$APP"
+PLUGIN_ROOT=$(dirname $0)
+DOKKU_HOSTNAME=$(cat "$DOKKU_ROOT/HOSTNAME" ||: )
+BOOTSTRAPPED_PATH="$DOKKU_ROOT/$APP/.bootstrapped"
+BUILD_TARGET=$(if [ -f "$BOOTSTRAPPED_PATH" ]; then echo "migrate"; else echo "bootstrap"; fi)
+ENV="-e DOKKU_APP=$APP -e DOKKU_HOSTNAME=$DOKKU_HOSTNAME -e BUILD_TARGET=$BUILD_TARGET"
+
+id=$(cat $PLUGIN_ROOT/release-symfony | docker run -i $ENV -a stdin $IMAGE /bin/bash -c "bash - ")
+docker attach $id
+test $(docker wait $id) -eq 0
+docker commit $id $IMAGE > /dev/null
+
+echo 1 > "$BOOTSTRAPPED_PATH"
