@@ -50,3 +50,4 @@ fi
 
 # fpm is running as nobody
 chmod -R a+w /app/app/cache
+chmod -R a+w /app/app/logs
