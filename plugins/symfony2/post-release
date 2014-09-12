@@ -4,8 +4,9 @@ set -eo pipefail; [[ "$DOKKU_TRACE" ]] && set -x
 APP="$1";
 IMAGE="dokku/$APP"
 PLUGIN_ROOT=$(dirname $0)
+DOKKU_HOSTNAME=$(cat "$DOKKU_ROOT/HOSTNAME" ||: )
 
-id=$(cat $PLUGIN_ROOT/release-symfony | docker run -i -a stdin $IMAGE /bin/bash -c "bash - ")
+id=$(cat $PLUGIN_ROOT/release-symfony | docker run -i -e DOKKU_APP=$APP -e DOKKU_HOSTNAME=$DOKKU_HOSTNAME -a stdin $IMAGE /bin/bash -c "bash - ")
 docker attach $id
 test $(docker wait $id) -eq 0
 docker commit $id $IMAGE > /dev/null
