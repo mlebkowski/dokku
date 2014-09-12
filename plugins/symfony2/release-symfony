@@ -52,5 +52,6 @@ fi
 chmod -R a+w /app/app/cache
 chmod -R a+rxw /app/legacy/app/config/cache
 chmod -R a+w /app/app/logs
+chmod -R a+w /app/web/platform/
 find /app/app/cache -type d -exec chmod a+rx {} \;
 
