@@ -9,7 +9,7 @@ fi
 APP="$1";
 APP_HOME="$DOKKU_ROOT/$APP"
 ENV_FILE="$DOKKU_ROOT/$APP/ENV"
-ENV_TEMP=$(cat "${ENV_FILE}" 2>/dev/null)
+export ENV_TEMP=$(cat "${ENV_FILE}" 2>/dev/null)
 SERVICES_HOME="$APP_HOME/dokku-services"
 
 docker run -a stdout "dokku/$APP" jq -r '.extra.services |map(.name + "|" + .variables + "|" + .defaults) | .[]' /app/composer.json | \
