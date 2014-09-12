@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -eo pipefail; [[ "$DOKKU_TRACE" ]] && set -x
 
+if [ $(echo $(jq --version 2>&1 |cut -d"-" -f2) " >= 1.4" | bc) -eq 0 ]; then
+	echo "jq >= 1.4 required, you have" $(jq --version 2>&1)
+	exit 1;
+fi
+
 APP="$1";
 APP_HOME="$DOKKU_ROOT/$APP"
 SERVICES_HOME="$APP_HOME/dokku-services"
