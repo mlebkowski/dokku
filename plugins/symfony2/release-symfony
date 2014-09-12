@@ -44,7 +44,6 @@ fi
 
 if [[ -f "$PHING_BIN" ]] && [[ -f /app/build.xml ]];
 then
-	BUILD_TARGET=$(jq -r '.extra.build.bootstrap // "bootstrap"' < /app/composer.json)
 	$PHING_BIN -f /app/build.xml -Dbuild.confirm=Y $BUILD_TARGET
 fi
 
