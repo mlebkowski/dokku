@@ -13,7 +13,10 @@ all:
 
 install: dependencies stack copyfiles plugins version
 
-copyfiles: addman
+copyfiles: addman updatefiles
+
+updatefiles:
+
 	cp dokku /usr/local/bin/dokku
 	mkdir -p /var/lib/dokku/plugins
 	cp -r plugins/* /var/lib/dokku/plugins
