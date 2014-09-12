@@ -119,7 +119,7 @@ case "$1" in
 
     # kill the old container
     if [[ -n "$oldid" ]]; then
-      docker inspect $oldid &> /dev/null && docker kill $oldid > /dev/null
+      docker inspect $oldid &> /dev/null && docker kill $oldid > /dev/null || :
     fi
 
     ;;
