@@ -8,6 +8,8 @@ fi
 
 APP="$1";
 APP_HOME="$DOKKU_ROOT/$APP"
+ENV_FILE="$DOKKU_ROOT/$APP/ENV"
+ENV_TEMP=$(cat "${ENV_FILE}" 2>/dev/null)
 SERVICES_HOME="$APP_HOME/dokku-services"
 
 docker run -a stdout "dokku/$APP" jq -r '.extra.services |map(.name + " | " + .variables + " | " + .defaults) | .[]' /app/composer.json | \
@@ -28,6 +30,16 @@ while IFS="|" read SERVICE_NAME VARIABLE_NAMES DEFAULT_VALUES; do
 	docker inspect $CONTAINER_ID | \
 		jq -r '.[0].NetworkSettings | .IPAddress + "\n" + ( .Ports | to_entries | .[0] | if .value then .value else .key | split("/") | .[0] end )' | \
 		paste - <(printf '%s\n' $DEFAULT_VALUES ) | awk '{print $1;}' | \
-		dokku config:set $APP $( paste -d"=" <(printf '%s\n' $VARIABLE_NAMES) - | grep -v "^=" )
+		paste -d"=" <(printf '%s\n' $VARIABLE_NAMES) - | grep -v "^=" | \
+		while IFS="" read VARIABLE; do
+			KEY=$(echo ${VARIABLE} | cut -d"=" -f1)
+			VALUE=$(echo ${VARIABLE} | cut -d"=" -f2-)
+
+	        ENV_TEMP=$(echo -e "${ENV_TEMP}" | sed "/^export $KEY=/ d")
+	        ENV_TEMP="${ENV_TEMP}\nexport ${VARIABLE}"
+
+		done
 
 done
+
+echo -e "$ENV_TEMP" | sed '/^$/d' | sort > "$ENV_FILE"
