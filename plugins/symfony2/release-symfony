@@ -11,6 +11,8 @@ else
 fi
 source "$APP_ENV"
 
+sed --in-place s/app.php/app_dev.php/g app/conf/site.conf.erb
+
 CONSOLE_BIN=/app/app/console
 
 COMPOSER_BIN=/app/composer.phar
@@ -45,3 +47,6 @@ then
 	BUILD_TARGET=$(jq -r '.extra.build.bootstrap // "bootstrap"' < /app/composer.json)
 	$PHING_BIN -f /app/build.xml -Dbuild.confirm=Y $BUILD_TARGET
 fi
+
+# fpm is running as nobody
+chmod -R a+w /app/app/cache
