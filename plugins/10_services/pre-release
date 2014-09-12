@@ -19,7 +19,7 @@ while IFS="|" read SERVICE_NAME VARIABLE_NAMES DEFAULT_VALUES; do
 	SAFE_SERVICE_NAME=${SERVICE_NAME/\//_}
 	CONTAINER_ID_PATH="${SERVICES_HOME}/${SAFE_SERVICE_NAME}.cid"
 	CONTAINER_ID=$(cat "$CONTAINER_ID_PATH" 2>/dev/null ||: )
-	if [ $(docker inspect "${CONTAINER_ID}" 2>/dev/null | jq '.State.Running // false' 2>/dev/null) != "true" ]; then
+	if [ $(docker inspect "${CONTAINER_ID}" 2>/dev/null | jq '.[0].State.Running // false' 2>/dev/null) != "true" ]; then
 
 		CONTAINER_ID=$(docker run -d "$SERVICE_NAME")
 		echo "$CONTAINER_ID" > "$CONTAINER_ID_PATH"
