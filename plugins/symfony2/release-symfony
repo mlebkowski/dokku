@@ -47,10 +47,11 @@ then
 	$PHING_BIN -f /app/build.xml -Dbuild.confirm=Y $BUILD_TARGET
 fi
 
-# fpm is running as nobody
-chmod -R a+w /app/app/cache
-chmod -R a+rxw /app/legacy/app/config/cache
-chmod -R a+w /app/app/logs
-chmod -R a+w /app/web/platform/
-find /app/app/cache -type d -exec chmod a+rx {} \;
+# fpm is running as nobody:
+while read dir; do
+	find /app/$dir -type f -exec chmod a+rw {} \;
+	find /app/$dir -type d -exec chmod a+rxw {} \;
+
+done < <(jq -r '.extra["writable-paths"] | .[]' < /app/composer.json)
+
 
